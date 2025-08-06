@@ -1,0 +1,60 @@
+{
+  "packages": [
+    {
+      "id": 1,
+      "tracking_id": "TRACK123",
+      "customer_name": "John Doe",
+      "phone": "1234567890",
+      "address": "123 Main St, Anytown",
+      "postal_code": "12345",
+      "email": "justwantpost@gmail.com",
+      "scheduled_at": "2025-08-09 Morning",
+      "status": "Out for Delivery"
+    },
+    {
+      "id": 2,
+      "tracking_id": "TRACK456",
+      "customer_name": "Jane Smith",
+      "phone": "0987654321",
+      "address": "99 North Ave, Othertown",
+      "postal_code": "98765",
+      "email": "justwantpost@gmail.com",
+      "scheduled_at": "2025-08-04 14:00:00",
+      "status": "Scheduled"
+    }
+  ],
+  "call_logs": [
+    {
+      "id": 1,
+      "tracking_id": "TRACK123",
+      "transcript": "Seeded test log (no action yet)",
+      "completed": 1,
+      "escalated": 0,
+      "created_at": "2025-08-06T20:54:18"
+    },
+    {
+      "id": 2,
+      "tracking_id": "XYZINVALID",
+      "transcript": "Seeded failed verification \u2013 escalated",
+      "completed": 0,
+      "escalated": 1,
+      "created_at": "2025-08-06T20:54:18"
+    },
+    {
+      "id": 3,
+      "tracking_id": "TRACK123",
+      "transcript": "Customer called to reschedule delivery for TRACK123",
+      "completed": 1,
+      "escalated": 0,
+      "created_at": "2025-08-06T20:54:48"
+    },
+    {
+      "id": 4,
+      "tracking_id": "TRACK123",
+      "transcript": "User: TRACK123 and 12345\nAgent: Hello this is customer support department, please tell me your tracking number and postal code?\nPropose reschedule delivery\nUser: TRACK123 and 12345\nAgent: So, um, I can offer you these delivery windows: August 7th in the morning, August 7th in the afternoon, or August 9th in the morning. Which one works best for you?\nUser: 9th Aug\nAgent: Alright, your delivery\u2019s now set for the morning of August 9th. If you need anything else, just let me know!\nUser: no I am good\n",
+      "completed": 1,
+      "escalated": 0,
+      "created_at": "2025-08-06T21:03:28"
+    }
+  ]
+}

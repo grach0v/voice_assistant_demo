@@ -1,6 +1,5 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
 import datetime
 import sqlite3
 import os
@@ -8,46 +7,17 @@ import json
 from dotenv import load_dotenv
 from retell import Retell
 
-import base64
-from email.mime.text import MIMEText
-from google.oauth2.credentials import Credentials
-from googleapiclient.discovery import build
-
-
-class VerifyRequest(BaseModel):
-    postal_code: str
-    tracking_id: str
-
-class UpdateDateRequest(BaseModel):
-    tracking_id: str
-    new_date: str
-
-class FinishCallRequest(BaseModel):
-    tracking_id: str
+from .models import VerifyRequest, UpdateDateRequest, FinishCallRequest
+from .email_tools import send_confirmation_email
 
 conn = sqlite3.connect("app.db", check_same_thread=False)
 load_dotenv()  
 app = FastAPI()
 retell = Retell(api_key=os.environ["RETELL_API_KEY"])
 
-SCOPES = ['https://www.googleapis.com/auth/gmail.send']
-def get_gmail_service():
-    creds = Credentials.from_authorized_user_file('token.json', SCOPES)
-    return build('gmail', 'v1', credentials=creds)
-
-def create_message(to, subject, body_text):
-    message = MIMEText(body_text)
-    message['to'] = to
-    message['subject'] = subject
-    raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
-    return {'raw': raw}
-
-def send_message(service, user_id, message):
-    sent = service.users().messages().send(userId=user_id, body=message).execute()
-    print(f"Message sent! ID: {sent['id']}")
-    return sent
 
 def get_available_dates():
+    """Generate available delivery time slots"""
     now = datetime.datetime.now()
     tomorrow = now + datetime.timedelta(days=1)
     tomorrow_date = tomorrow.strftime("%Y-%m-%d")
@@ -62,18 +32,21 @@ def get_available_dates():
     window3 = f"{sat_date} Morning"        # Upcoming Saturday AM slot
     return [window1, window2, window3]
 
+
+def verify_retell_signature(post_data: dict, signature: str) -> bool:
+    """Verify the Retell webhook signature"""
+    return retell.verify(
+        json.dumps(post_data, separators=(",", ":"), ensure_ascii=False),
+        api_key=str(os.environ["RETELL_API_KEY"]),
+        signature=str(signature),
+    )
+
 @app.post("/verify")
 async def verify(request: Request):
     post_data = await request.json()
     
     # Verify signature
-    valid_signature = retell.verify(
-        json.dumps(post_data, separators=(",", ":"), ensure_ascii=False),
-        api_key=str(os.environ["RETELL_API_KEY"]),
-        signature=str(request.headers.get("X-Retell-Signature")),
-    )
-
-    if not valid_signature:
+    if not verify_retell_signature(post_data, request.headers.get("X-Retell-Signature")):
         return JSONResponse(status_code=403, content={"status": "error", "message": "Invalid signature"})
     
     # Extract from the nested structure based on the error details
@@ -125,13 +98,7 @@ async def update_date(request: Request):
     post_data = await request.json()
     
     # Verify signature
-    valid_signature = retell.verify(
-        json.dumps(post_data, separators=(",", ":"), ensure_ascii=False),
-        api_key=str(os.environ["RETELL_API_KEY"]),
-        signature=str(request.headers.get("X-Retell-Signature")),
-    )
-
-    if not valid_signature:
+    if not verify_retell_signature(post_data, request.headers.get("X-Retell-Signature")):
         return JSONResponse(status_code=403, content={"status": "error", "message": "Invalid signature"})
     
     # Extract from the nested structure
@@ -155,13 +122,7 @@ async def update_date(request: Request):
 async def finish_call(request: Request):
     post_data = await request.json()
     
-    valid_signature = retell.verify(
-        json.dumps(post_data, separators=(",", ":"), ensure_ascii=False),
-        api_key=str(os.environ["RETELL_API_KEY"]),
-        signature=str(request.headers.get("X-Retell-Signature")),
-    )
-
-    if not valid_signature:
+    if not verify_retell_signature(post_data, request.headers.get("X-Retell-Signature")):
         return JSONResponse(status_code=403, content={"status": "error", "message": "Invalid signature"})
     
     transcript = post_data['call']['transcript']
@@ -192,14 +153,6 @@ async def finish_call(request: Request):
     conn.commit()
 
     # Send a confirmation email to the customer
-    try:
-        service = get_gmail_service()
-        subject = f"Call Completed - Package {finish_request.tracking_id}"
-        body_text = f"Hello {customer_name},\n\nYour call regarding package {finish_request.tracking_id} has been completed.\n\nCall Summary:\n{transcript}\n\nThank you for using our service!"
-        message = create_message(customer_email, subject, body_text)
-        send_message(service, "me", message)
-    except Exception as e:
-        print(f"Failed to send email: {e}")
-        # Don't fail the entire request if email fails
+    send_confirmation_email(finish_request.tracking_id, customer_name, customer_email, transcript)
     
     return {"status": "ok", "message": f"Call for package {finish_request.tracking_id} finished and transcript logged."}
